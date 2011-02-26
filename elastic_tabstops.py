@@ -143,7 +143,11 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       for i in range(0,len(tabs)-1):
         if i > rightmost_cell:
           break
-        cell_widths[i] = max(cell_widths[i],len(line[tabs[i]+1:tabs[i+1]].rstrip()))
+        cell = line[tabs[i]+1:tabs[i+1]]
+        if len(cell) == len(cell.rstrip()):
+          cell_widths[i] = max(cell_widths[i],len(cell))
+        else:
+          cell_widths[i] = max(cell_widths[i],len(cell.rstrip())+1)
       row_iter -= 1
     
     #forward (not including starting row)
@@ -159,7 +163,11 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       for i in range(0,len(tabs)-1):
         if i > rightmost_cell:
           break
-        cell_widths[i] = max(cell_widths[i],len(line[tabs[i]+1:tabs[i+1]].rstrip()))
+        cell = line[tabs[i]+1:tabs[i+1]]
+        if len(cell) == len(cell.rstrip()):
+          cell_widths[i] = max(cell_widths[i],len(cell))
+        else:
+          cell_widths[i] = max(cell_widths[i],len(cell.rstrip())+1)
     
     return cell_widths
   
