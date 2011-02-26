@@ -1,9 +1,9 @@
 import sublime
 import sublime_plugin
 import re
+from itertools import izip, izip_longest
 
 def lines_in_buffer(view):
-  #todo: maybe this is wrong? do i need size - 1?
   row, col = view.rowcol(view.size())
   #"row" is the index of the last row; need to add 1 to get number of rows
   return row + 1
@@ -63,13 +63,6 @@ def highlight_cell(view, text_point, delta):
 class ElasticTabstopsCommand(sublime_plugin.TextCommand):
   spaces_re = re.compile(r"(?<=  )(?=[^ ])")
   
-  def indent_line(self, line_number, starting_col, amount):
-    self.view.insert(view.text_point(line_number, starting_col), ' ' * amount)
-  
-  def indent_block(self, line_numbers, starting_col, amount):
-    for line_number in line_numbers:
-      indent_line(line_number, starting_col, amount)
-  
   def run(self, edit):
     all_spaces = []
     
@@ -105,6 +98,7 @@ class ElasticTabstopsCommand(sublime_plugin.TextCommand):
             space < len(line) and
             ((not space > 2) or line[space-2:space] == "  ")):
           spaces_by_line[next_index].append(space)
+    
     for n,line in enumerate(spaces_by_line):
       line.sort()
       print n,line
@@ -116,76 +110,108 @@ class ElasticTabstopsCommand(sublime_plugin.TextCommand):
     self.view.add_regions("ElasticTabstopsCommand", all_spaces, "comment", sublime.DRAW_EMPTY)
     highlight_cell(self.view, self.view.sel()[0].begin(), 0)
 
+def grouper(n, iterable, fillvalue=None):
+    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return izip_longest(fillvalue=fillvalue, *args)
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
+  """
+  on_modified:
+    for every line in the current and previous selections:
+      find right edge of the cell
+      move up while that right edge exists
+      re-align by adding spaces between the tabs
+      move down while that right edge exists
+      re-align by adding spaces between the tabs
+  """
   pending = 0
-  text_points_by_view = {}
+  selected_rows_by_view = {}
+  
+  def get_selected_rows(self, view):
+    selected_rows = set()
+    for s in view.sel():
+      begin_row,_ = view.rowcol(s.begin())
+      end_row,_ = view.rowcol(s.end())
+      for l in range(begin_row, end_row+1):
+        selected_rows.add(l)
+    return selected_rows
+  
+  def tabs_for_row(self, view, row):
+    row_tabs = []
+    for tab in re.finditer("\t", view.substr(view.line(view.text_point(row,0)))):
+      row_tabs.append(tab.start())
+    return row_tabs
+  
+  def space_between_tabs(self, tabs):
+    return [t1-t0-1 for t0, t1 in grouper(2, tabs)]
+  
+  def adjust_row(self, view, edit, row, start_row_tabs):
+    row_tabs = self.tabs_for_row(view, row)
+    if len(row_tabs) == 0:
+      return -1
+    print("rt",row_tabs)
+    for (st1, st2), (it1, it2) in izip(grouper(2, start_row_tabs),grouper(2, row_tabs)):
+      print(st1,st2,it1,it2)
+      difference = st2 - it2
+      if difference == 0:
+        continue
+      
+      end_tab_point = view.text_point(row, it2)
+      ispaces = it2 - it1 - 1
+      if difference > 0:
+        view.insert(edit, end_tab_point, ' ' * difference)
+      if difference < 0 and ispaces >= -difference:
+        view.erase(edit, sublime.Region(end_tab_point, end_tab_point + difference))
   
   def on_modified(self, view):
     if self.pending == 1:
       return
     
-    text_points = self.text_points_by_view[view.id()]
-    deltas = [0 for t in text_points]
-    changes = ['' for t in text_points]
-    bias = 0
-    for i,(t,s) in enumerate(zip(text_points,view.sel())):
-      s = s.end()
-      delta = s - t - bias
-      deltas[i] = delta
-      # if delta > 0:
-      #   print("Selection {0}: inserted {1} chars".format(i,delta))
-      # if delta < 0:
-      #   print("Selection {0}: deleted  {1} chars".format(i,-(delta)))
-      bias = s - t
-    
-    print('deltas',deltas)
-    
-    #check additions first
-    for i,(d,s) in enumerate(zip(deltas,view.sel())):
-      if d > 0:
-        changes[i] = view.substr(sublime.Region(s.end(),s.end()-delta))
-    
-    self.pending = 1
-    view.run_command('undo')
-    self.pending = 0
-    
-    #now that we've undone, we can see what was deleted
-    for i,(d,s) in enumerate(zip(deltas,view.sel())):
-      if d < 0:
-        changes[i] = view.substr(sublime.Region(s.end(),s.end()+delta))
-    
-    self.pending = 1
-    # view.run_command('redo')
-    self.pending = 0
-    
-    print(changes)
+    selected_rows =  (self.selected_rows_by_view[view.id()] |
+                      self.get_selected_rows(view))
     try:
       self.pending = 1
       edit = view.begin_edit()
-      for d,c,t in zip(deltas,changes,text_points):
-        if delta > 0:
-          view.insert(edit, t, c)
-        else:
-          view.erase(edit, sublime.Region(s.end(),s.end()+delta))
-      
-      regions = highlight_cell(view, view.sel()[0].begin(), deltas[0])
-      if not regions:
-        # print("none")
-        return
-      row, col = view.rowcol(view.sel()[0].begin())
-      
-      for region in reversed(regions):
-        point = region.end() - 1
-        r, c = view.rowcol(point)
-        if row != r:
-          if(deltas[0] > 0):
-            view.insert(edit, point, " " * deltas[0])
-          else:
-            view.erase(edit, sublime.Region(point + deltas[0], point))
+      checked_rows = []
+      for row in selected_rows:
+        start_row_tabs = self.tabs_for_row(view, row)
+        print("srt",start_row_tabs)
+        print(self.space_between_tabs(start_row_tabs))
+        row_iter = row
+        while row_iter > 0:
+          row_iter -= 1
+          if self.adjust_row(view, edit, row_iter, start_row_tabs) < 0:
+            break
+        row_iter = row
+        num_rows = lines_in_buffer(view)
+        while row_iter < num_rows - 1:
+          row_iter += 1
+          if self.adjust_row(view, edit, row_iter, start_row_tabs) < 0:
+            break
     finally:
       view.end_edit(edit)
       self.pending = 0
   
+  def on_pre_save(self, view):
+    spaces = []
+    regions = view.find_all(r"\t( *)\t", 0, "$1", spaces)
+    try:
+      edit = view.begin_edit()
+      for r, s in zip(regions, spaces):
+        view.replace(edit, r, " {0}\t".format(s))
+    finally:
+      view.end_edit(edit)
+    
+  def on_post_save(self, view):
+    spaces = []
+    regions = view.find_all(r" ( *)\t", 0, "$1", spaces)
+    try:
+      edit = view.begin_edit()
+      for r, s in zip(regions, spaces):
+        view.replace(edit, r, "\t{0}\t".format(s))
+    finally:
+      view.end_edit(edit)
+    
   def on_selection_modified(self, view):
-    self.text_points_by_view[view.id()] = [s.end() for s in view.sel()]
+    self.selected_rows_by_view[view.id()] = self.get_selected_rows(view)
