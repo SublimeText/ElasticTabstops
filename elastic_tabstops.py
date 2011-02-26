@@ -111,15 +111,6 @@ class ElasticTabstopsCommand(sublime_plugin.TextCommand):
     highlight_cell(self.view, self.view.sel()[0].begin(), 0)
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
-  """
-  on_modified:
-    for every line in the current and previous selections:
-      find right edge of the cell
-      move up while that right edge exists
-      re-align by adding spaces between the tabs
-      move down while that right edge exists
-      re-align by adding spaces between the tabs
-  """
   pending = 0
   selected_rows_by_view = {}
   
@@ -138,16 +129,48 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       row_tabs.append(tab.start())
     return row_tabs
   
+  def find_max_cell_widths(self, view, row):
+    cell_widths = [0] * len(self.tabs_for_row(view, row))
+    
+    #starting row and backward
+    rightmost_cell = len(cell_widths) - 1
+    row_iter = row
+    while row_iter >= 0:
+      line = view.substr(view.line(view.text_point(row_iter,0)))
+      tabs = [-1] + self.tabs_for_row(view, row_iter)
+      if len(tabs) == 1:
+        break
+      for i in range(0,len(tabs)-1):
+        if i > rightmost_cell:
+          break
+        cell_widths[i] = max(cell_widths[i],len(line[tabs[i]+1:tabs[i+1]].rstrip()))
+      row_iter -= 1
+    
+    #forward (not including starting row)
+    rightmost_cell = len(cell_widths) - 1
+    row_iter = row
+    num_rows = lines_in_buffer(view)
+    while row_iter < num_rows - 1:
+      row_iter += 1
+      line = view.substr(view.line(view.text_point(row_iter,0)))
+      tabs = [-1] + self.tabs_for_row(view, row_iter)
+      if len(tabs) == 1:
+        break
+      for i in range(0,len(tabs)-1):
+        if i > rightmost_cell:
+          break
+        cell_widths[i] = max(cell_widths[i],len(line[tabs[i]+1:tabs[i+1]].rstrip()))
+    
+    return cell_widths
+  
   def adjust_row(self, view, edit, row, start_row_tabs):
     row_tabs = self.tabs_for_row(view, row)
     if len(row_tabs) == 0:
       return 0
-    print("rt",row_tabs)
     bias = 0
     i = 0
     for st, it in izip(start_row_tabs,row_tabs):
       i += 1
-      print(st, it)
       it += bias
       difference = st - it
       if difference == 0:
@@ -157,6 +180,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       partial_line = view.substr(view.line(end_tab_point))[0:it]
       stripped_partial_line = partial_line.rstrip()
       ispaces = len(partial_line) - len(stripped_partial_line)
+      print(st,it,end_tab_point,ispaces,difference)
       if difference > 0:
         view.insert(edit, end_tab_point, ' ' * difference)
         bias += difference
@@ -177,12 +201,24 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       checked_rows = []
       for row in selected_rows:
         start_row_tabs = self.tabs_for_row(view, row)
+        max_cell_widths = self.find_max_cell_widths(view, row)
+        print("cw",max_cell_widths)
+        tab_locations = [0] * len(max_cell_widths)
+        for i,w in enumerate(max_cell_widths):
+          if i == 0:
+            tab_locations[i] = w
+          else:
+            tab_locations[i] = tab_locations[i - 1] + w + 1
+        self.adjust_row(view, edit, row, tab_locations)
+        
+        start_row_tabs = self.tabs_for_row(view, row)
         row_iter = row
         while row_iter > 0:
           row_iter -= 1
           num_tabs = self.adjust_row(view, edit, row_iter, start_row_tabs)
           if num_tabs == 0:
             break
+          print('r',row_iter)
           start_row_tabs = start_row_tabs[0:num_tabs]
         
         start_row_tabs = self.tabs_for_row(view, row)
@@ -193,6 +229,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
           num_tabs = self.adjust_row(view, edit, row_iter, start_row_tabs)
           if num_tabs == 0:
             break
+          print('r',row_iter)
           start_row_tabs = start_row_tabs[0:num_tabs]
     finally:
       view.end_edit(edit)
