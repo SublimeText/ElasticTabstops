@@ -110,11 +110,6 @@ class ElasticTabstopsCommand(sublime_plugin.TextCommand):
     self.view.add_regions("ElasticTabstopsCommand", all_spaces, "comment", sublime.DRAW_EMPTY)
     highlight_cell(self.view, self.view.sel()[0].begin(), 0)
 
-def grouper(n, iterable, fillvalue=None):
-    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
-    args = [iter(iterable)] * n
-    return izip_longest(fillvalue=fillvalue, *args)
-
 class ElasticTabstopsListener(sublime_plugin.EventListener):
   """
   on_modified:
@@ -143,32 +138,32 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       row_tabs.append(tab.start())
     return row_tabs
   
-  def space_between_tabs(self, tabs):
-    return [t1-t0-1 for t0, t1 in grouper(2, tabs)]
-  
   def adjust_row(self, view, edit, row, start_row_tabs):
     row_tabs = self.tabs_for_row(view, row)
     if len(row_tabs) == 0:
-      return None
+      return 0
     print("rt",row_tabs)
     bias = 0
-    for (st0, st1), (it0, it1) in izip(grouper(2, start_row_tabs),grouper(2, row_tabs)):
-      print(st0,st1,it0,it1)
-      it0 += bias
-      it1 += bias
-      difference = st1 - it1
+    i = 0
+    for st, it in izip(start_row_tabs,row_tabs):
+      i += 1
+      print(st, it)
+      it += bias
+      difference = st - it
       if difference == 0:
         continue
       
-      end_tab_point = view.text_point(row, it1)
-      ispaces = it1 - it0 - 1
+      end_tab_point = view.text_point(row, it)
+      partial_line = view.substr(view.line(end_tab_point))[0:it]
+      stripped_partial_line = partial_line.rstrip()
+      ispaces = len(partial_line) - len(stripped_partial_line)
       if difference > 0:
         view.insert(edit, end_tab_point, ' ' * difference)
         bias += difference
       if difference < 0 and ispaces >= -difference:
         view.erase(edit, sublime.Region(end_tab_point, end_tab_point + difference))
         bias += difference
-    return True
+    return i
   
   def on_modified(self, view):
     if self.pending == 1:
@@ -182,42 +177,26 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       checked_rows = []
       for row in selected_rows:
         start_row_tabs = self.tabs_for_row(view, row)
-        print("srt",start_row_tabs)
-        print(self.space_between_tabs(start_row_tabs))
         row_iter = row
         while row_iter > 0:
           row_iter -= 1
-          if self.adjust_row(view, edit, row_iter, start_row_tabs) == None:
+          num_tabs = self.adjust_row(view, edit, row_iter, start_row_tabs)
+          if num_tabs == 0:
             break
+          start_row_tabs = start_row_tabs[0:num_tabs]
+        
+        start_row_tabs = self.tabs_for_row(view, row)
         row_iter = row
         num_rows = lines_in_buffer(view)
         while row_iter < num_rows - 1:
           row_iter += 1
-          if self.adjust_row(view, edit, row_iter, start_row_tabs) == None:
+          num_tabs = self.adjust_row(view, edit, row_iter, start_row_tabs)
+          if num_tabs == 0:
             break
+          start_row_tabs = start_row_tabs[0:num_tabs]
     finally:
       view.end_edit(edit)
       self.pending = 0
   
-  def on_pre_save(self, view):
-    spaces = []
-    regions = view.find_all(r"\t( *)\t", 0, "$1", spaces)
-    try:
-      edit = view.begin_edit()
-      for r, s in zip(regions, spaces):
-        view.replace(edit, r, " {0}\t".format(s))
-    finally:
-      view.end_edit(edit)
-    
-  def on_post_save(self, view):
-    spaces = []
-    regions = view.find_all(r" ( *)\t", 0, "$1", spaces)
-    try:
-      edit = view.begin_edit()
-      for r, s in zip(regions, spaces):
-        view.replace(edit, r, "\t{0}\t".format(s))
-    finally:
-      view.end_edit(edit)
-    
   def on_selection_modified(self, view):
     self.selected_rows_by_view[view.id()] = self.get_selected_rows(view)
