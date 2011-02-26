@@ -149,20 +149,26 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
   def adjust_row(self, view, edit, row, start_row_tabs):
     row_tabs = self.tabs_for_row(view, row)
     if len(row_tabs) == 0:
-      return -1
+      return None
     print("rt",row_tabs)
-    for (st1, st2), (it1, it2) in izip(grouper(2, start_row_tabs),grouper(2, row_tabs)):
-      print(st1,st2,it1,it2)
-      difference = st2 - it2
+    bias = 0
+    for (st0, st1), (it0, it1) in izip(grouper(2, start_row_tabs),grouper(2, row_tabs)):
+      print(st0,st1,it0,it1)
+      it0 += bias
+      it1 += bias
+      difference = st1 - it1
       if difference == 0:
         continue
       
-      end_tab_point = view.text_point(row, it2)
-      ispaces = it2 - it1 - 1
+      end_tab_point = view.text_point(row, it1)
+      ispaces = it1 - it0 - 1
       if difference > 0:
         view.insert(edit, end_tab_point, ' ' * difference)
+        bias += difference
       if difference < 0 and ispaces >= -difference:
         view.erase(edit, sublime.Region(end_tab_point, end_tab_point + difference))
+        bias += difference
+    return True
   
   def on_modified(self, view):
     if self.pending == 1:
@@ -181,13 +187,13 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
         row_iter = row
         while row_iter > 0:
           row_iter -= 1
-          if self.adjust_row(view, edit, row_iter, start_row_tabs) < 0:
+          if self.adjust_row(view, edit, row_iter, start_row_tabs) == None:
             break
         row_iter = row
         num_rows = lines_in_buffer(view)
         while row_iter < num_rows - 1:
           row_iter += 1
-          if self.adjust_row(view, edit, row_iter, start_row_tabs) < 0:
+          if self.adjust_row(view, edit, row_iter, start_row_tabs) == None:
             break
     finally:
       view.end_edit(edit)
