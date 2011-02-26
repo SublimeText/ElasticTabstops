@@ -190,7 +190,8 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
       ispaces = len(partial_line) - len(stripped_partial_line)
       print(st,it,end_tab_point,ispaces,difference)
       if difference > 0:
-        view.insert(edit, end_tab_point, ' ' * difference)
+        view.insert(edit, end_tab_point+1, (' ' * difference) + "\t")
+        view.erase(edit, sublime.Region(end_tab_point, end_tab_point + 1))
         bias += difference
       if difference < 0 and ispaces >= -difference:
         view.erase(edit, sublime.Region(end_tab_point, end_tab_point + difference))
