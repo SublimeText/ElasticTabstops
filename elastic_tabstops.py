@@ -1,4 +1,10 @@
 """
+UPDATE
+  Use this command to reprocess the whole file. Shouldn't be necessary except
+  in specific cases.
+  
+  { "keys": ["super+j"], "command": "elastic_tabstops_update"},
+
 UNDO
   In order for undo/redo and soft undo/soft redo to work, you'll need to
   redefine your commands. Put these in your keymap file, and if you're on
