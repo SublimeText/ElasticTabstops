@@ -35,27 +35,27 @@ def tabs_for_row( view, row):
     row_tabs.append(tab.start())
   return row_tabs
 
-def cell_widths_for_row(view, row):
+def cell_widths_for_row(view, row, allow_extra_space):
   tabs = [-1] + tabs_for_row(view, row)
   widths = [0] * (len(tabs) - 1)
   line = view.substr(view.line(view.text_point(row,0)))
   for i in range(0,len(tabs)-1):
     cell = line[tabs[i]+1:tabs[i+1]]
-    if len(cell) == len(cell.rstrip()):
-      widths[i] = len(cell)
+    cell_rstrip_len = len(cell.rstrip())
+    if len(cell) == cell_rstrip_len or not allow_extra_space:
+      widths[i] = cell_rstrip_len
     else:
-      #doing this allows one extra space at the end of a cell
-      widths[i] = len(cell.rstrip())+1
+      widths[i] = cell_rstrip_len+1
   return widths
 
-def find_cell_widths_for_block(view, row):
+def find_cell_widths_for_block(view, row, modified_rows):
   cell_widths = []
   
   #starting row and backward
   rightmost_cell = len(cell_widths) - 1
   row_iter = row
   while row_iter >= 0:
-    widths = cell_widths_for_row(view, row_iter)
+    widths = cell_widths_for_row(view, row_iter, row_iter in modified_rows)
     if len(widths) == 0:
       break
     cell_widths.insert(0, widths)
@@ -67,7 +67,7 @@ def find_cell_widths_for_block(view, row):
   num_rows = lines_in_buffer(view)
   while row_iter < num_rows - 1:
     row_iter += 1
-    widths = cell_widths_for_row(view, row_iter)
+    widths = cell_widths_for_row(view, row_iter, row_iter in modified_rows)
     if len(widths) == 0:
       break
     cell_widths.append(widths)
@@ -127,7 +127,7 @@ def process_rows(view, edit, rows):
     if row in checked_rows:
       continue
     
-    cell_widths_by_row, row_index = find_cell_widths_for_block(view, row)
+    cell_widths_by_row, row_index = find_cell_widths_for_block(view, row, rows)
     set_block_cell_widths_to_max(cell_widths_by_row)
     for widths in cell_widths_by_row:
       checked_rows.add(row_index)
