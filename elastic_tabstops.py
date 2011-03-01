@@ -114,6 +114,9 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
   pending = 0
   selected_rows_by_view = {}
   
+  def set_pending(self, bool):
+    self.pending = bool
+  
   def get_selected_rows(self, view):
     selected_rows = set()
     for s in view.sel():
@@ -199,7 +202,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
     return i
   
   def on_modified(self, view):
-    if self.pending == 1:
+    if self.pending:
       return
     
     selected_rows =  (self.selected_rows_by_view[view.id()] |
@@ -246,3 +249,59 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
   
   def on_selection_modified(self, view):
     self.selected_rows_by_view[view.id()] = self.get_selected_rows(view)
+
+class UndoSkipOnModifiedCommand(sublime_plugin.TextCommand):
+  def run(self,edit):
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(True)
+      except:
+        pass
+    self.view.run_command("undo")
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(False)
+      except:
+        pass
+
+class RedoSkipOnModifiedCommand(sublime_plugin.TextCommand):
+  def run(self,edit):
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(True)
+      except:
+        pass
+    self.view.run_command("redo")
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(False)
+      except:
+        pass
+
+class SoftUndoSkipOnModifiedCommand(sublime_plugin.TextCommand):
+  def run(self,edit):
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(True)
+      except:
+        pass
+    self.view.run_command("soft_undo")
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(False)
+      except:
+        pass
+
+class SoftRedoSkipOnModifiedCommand(sublime_plugin.TextCommand):
+  def run(self,edit):
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(True)
+      except:
+        pass
+    self.view.run_command("soft_redo")
+    for obj in sublime_plugin.all_callbacks['on_modified']:
+      try:
+        obj.set_pending(False)
+      except:
+        pass
