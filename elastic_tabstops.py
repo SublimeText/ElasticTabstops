@@ -81,6 +81,7 @@ def find_cell_widths_for_block(view, row, modified_rows):
 	return cell_widths, first_row
 
 def adjust_row(view, edit, row, widths):
+	changed = False
 	row_tabs = tabs_for_row(view, row)
 	if len(row_tabs) == 0:
 		return 0
@@ -92,6 +93,8 @@ def adjust_row(view, edit, row, widths):
 		difference = location - it
 		if difference == 0:
 			continue
+		
+		changed = True
 		
 		end_tab_point = view.text_point(row, it)
 		partial_line = view.substr(view.line(end_tab_point))[0:it]
@@ -106,6 +109,7 @@ def adjust_row(view, edit, row, widths):
 		if difference < 0 and ispaces >= -difference:
 			view.erase(edit, sublime.Region(end_tab_point, end_tab_point + difference))
 			bias += difference
+	return changed
 
 def set_block_cell_widths_to_max(cell_widths):
 	starting_new_block = True
@@ -128,6 +132,7 @@ def set_block_cell_widths_to_max(cell_widths):
 			max_width = max(max_width, width)
 
 def process_rows(view, edit, rows):
+	changed = False
 	checked_rows = set()
 	for row in rows:
 		if row in checked_rows:
@@ -137,8 +142,9 @@ def process_rows(view, edit, rows):
 		set_block_cell_widths_to_max(cell_widths_by_row)
 		for widths in cell_widths_by_row:
 			checked_rows.add(row_index)
-			adjust_row(view, edit, row_index, widths)
+			changed |= adjust_row(view, edit, row_index, widths)
 			row_index += 1
+	return changed
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
 	pending = 0
@@ -151,6 +157,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 		if self.pending:
 			return
 		
+		changed = False
 		selected_rows = (self.selected_rows_by_view[view.id()] |
 										 get_selected_rows(view))
 		try:
@@ -162,12 +169,15 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 				view.settings().set("translate_tabs_to_spaces", False)
 			
 			edit = view.begin_edit()
-			process_rows(view, edit, selected_rows)
+			changed = process_rows(view, edit, selected_rows)
 			
 		finally:
 			if translate:
 				view.settings().set("translate_tabs_to_spaces",True)
 			view.end_edit(edit)
+			if changed:
+				view.run_command("glue_marked_undo_groups")
+			view.run_command("maybe_mark_undo_groups_for_gluing")  #for the next time around
 			self.pending = 0
 	
 	def on_selection_modified(self, view):
