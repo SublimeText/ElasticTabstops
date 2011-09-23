@@ -10,10 +10,10 @@ UNDO
 	redefine your commands. Put these in your keymap file, and if you're on
 	Windows change "super" to "ctrl" in each one.
 	
-	{ "keys": ["super+z"], "command": "undo_skip_on_modified"},
-	{ "keys": ["super+shift+z"], "command": "redo_skip_on_modified"},
-	{ "keys": ["super+u"], "command": "soft_undo_skip_on_modified" },
-	{ "keys": ["super+shift+u"], "command": "soft_redo_skip_on_modified" }
+  { "keys": ["super+z"], "command": "pending_command", "args": {"command": "undo"} },
+  { "keys": ["super+shift+z"], "command": "pending_command", "args": {"command": "redo"} },
+  { "keys": ["super+u"], "command": "pending_command", "args": {"command": "soft_undo"} },
+  { "keys": ["super+shift+u"], "command": "pending_command", "args": {"command": "soft_redo"} },
 """
 
 
@@ -181,59 +181,18 @@ class ElasticTabstopsUpdateCommand(sublime_plugin.TextCommand):
 		process_rows(self.view, edit, rows)
 
 
+def set_pending(pending):
+	for obj in sublime_plugin.all_callbacks['on_modified']:
+		try:
+			obj.set_pending(pending)
+		except:
+			pass
 
-class UndoSkipOnModifiedCommand(sublime_plugin.TextCommand):
-	def run(self,edit):
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(True)
-			except:
-				pass
-		self.view.run_command("undo")
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(False)
-			except:
-				pass
+def asynchronous_pending_command(view, command_string):
+	set_pending(True)
+	view.run_command(command_string)
+	set_pending(False)
 
-class RedoSkipOnModifiedCommand(sublime_plugin.TextCommand):
-	def run(self,edit):
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(True)
-			except:
-				pass
-		self.view.run_command("redo")
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(False)
-			except:
-				pass
-
-class SoftUndoSkipOnModifiedCommand(sublime_plugin.TextCommand):
-	def run(self,edit):
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(True)
-			except:
-				pass
-		self.view.run_command("soft_undo")
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(False)
-			except:
-				pass
-
-class SoftRedoSkipOnModifiedCommand(sublime_plugin.TextCommand):
-	def run(self,edit):
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(True)
-			except:
-				pass
-		self.view.run_command("soft_redo")
-		for obj in sublime_plugin.all_callbacks['on_modified']:
-			try:
-				obj.set_pending(False)
-			except:
-				pass
+class PendingCommandCommand(sublime_plugin.TextCommand):
+	def run(self,edit,command):
+		sublime.set_timeout(lambda : asynchronous_pending_command(self.view, command), 1)
