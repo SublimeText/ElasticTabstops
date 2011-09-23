@@ -4,16 +4,6 @@ UPDATE
 	in specific cases.
 	
 	{ "keys": ["super+j"], "command": "elastic_tabstops_update"},
-
-UNDO
-	In order for undo/redo and soft undo/soft redo to work, you'll need to
-	redefine your commands. Put these in your keymap file, and if you're on
-	Windows change "super" to "ctrl" in each one.
-	
-  { "keys": ["super+z"], "command": "pending_command", "args": {"command": "undo"} },
-  { "keys": ["super+shift+z"], "command": "pending_command", "args": {"command": "redo"} },
-  { "keys": ["super+u"], "command": "pending_command", "args": {"command": "soft_undo"} },
-  { "keys": ["super+shift+u"], "command": "pending_command", "args": {"command": "soft_redo"} },
 """
 
 
