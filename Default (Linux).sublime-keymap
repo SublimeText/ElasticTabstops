@@ -1,0 +1,6 @@
+[
+	{ "keys": ["ctrl+z"], "command": "pending_command", "args": {"command": "undo"} },
+	{ "keys": ["ctrl+shift+z"], "command": "pending_command", "args": {"command": "redo"} },
+	{ "keys": ["ctrl+u"], "command": "pending_command", "args": {"command": "soft_undo"} },
+	{ "keys": ["ctrl+shift+u"], "command": "pending_command", "args": {"command": "soft_redo"} }
+]
