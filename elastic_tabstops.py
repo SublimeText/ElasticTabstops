@@ -167,6 +167,11 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 			view.end_edit(edit)
 			if changed:
 				view.run_command("glue_marked_undo_groups")
+			else:
+				# We don't want to hold on to our mark in between calls,
+				# otherwise undo will only undo between times that you've
+				# affected the indentation
+				view.run_command("unmark_undo_groups_for_gluing")
 			view.run_command("maybe_mark_undo_groups_for_gluing")  #for the next time around
 			self.pending = 0
 	
