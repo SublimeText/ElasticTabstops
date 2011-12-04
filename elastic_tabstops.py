@@ -148,8 +148,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 			return
 		
 		changed = False
-		selected_rows = (self.selected_rows_by_view[view.id()] |
-										 get_selected_rows(view))
+		selected_rows = self.selected_rows_by_view.get(view.id(), get_selected_rows(view))
 		try:
 			self.pending = 1
 			
