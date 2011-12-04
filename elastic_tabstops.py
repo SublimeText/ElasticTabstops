@@ -48,7 +48,6 @@ def find_cell_widths_for_block(view, row, modified_rows):
 	cell_widths = []
 	
 	#starting row and backward
-	rightmost_cell = len(cell_widths) - 1
 	row_iter = row
 	while row_iter >= 0:
 		widths = cell_widths_for_row(view, row_iter, row_iter in modified_rows)
