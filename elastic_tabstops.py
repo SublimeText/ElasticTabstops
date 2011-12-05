@@ -17,7 +17,7 @@ def lines_in_buffer(view):
 	#"row" is the index of the last row; need to add 1 to get number of rows
 	return row + 1
 
-def get_selected_rows( view):
+def get_selected_rows(view):
 	selected_rows = set()
 	for s in view.sel():
 		begin_row,_ = view.rowcol(s.begin())
@@ -25,7 +25,7 @@ def get_selected_rows( view):
 		map(selected_rows.add, range(begin_row, end_row+1))
 	return selected_rows
 
-def tabs_for_row( view, row):
+def tabs_for_row(view, row):
 	row_tabs = []
 	for tab in re.finditer("\t", view.substr(view.line(view.text_point(row,0)))):
 		row_tabs.append(tab.start())
