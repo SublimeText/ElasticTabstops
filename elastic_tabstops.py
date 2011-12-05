@@ -40,10 +40,11 @@ def selection_columns_for_row(view, row):
 				selections.append(c)
 	return selections
 
-def any_selection_at_right_edge_of_cell(selection_columns, cell_right_edge):
-	if cell_right_edge in selection_columns:
-		return True
-	return False
+def rightmost_selection_in_cell(selection_columns, cell_right_edge):
+	rightmost = 0
+	if len(selection_columns):
+		rightmost = max([s if s <= cell_right_edge else 0 for s in selection_columns])
+	return rightmost
 
 def cell_widths_for_row(view, row):
 	selection_columns = selection_columns_for_row(view, row)
@@ -51,11 +52,11 @@ def cell_widths_for_row(view, row):
 	widths = [0] * (len(tabs) - 1)
 	line = view.substr(view.line(view.text_point(row,0)))
 	for i in range(0,len(tabs)-1):
-		cell = line[tabs[i]+1:tabs[i+1]]
-		if any_selection_at_right_edge_of_cell(selection_columns, tabs[i+1]):
-			widths[i] = len(cell)
-		else:
-			widths[i] = len(cell.rstrip())
+		left_edge = tabs[i]+1
+		right_edge = tabs[i+1]
+		rightmost_selection = rightmost_selection_in_cell(selection_columns, right_edge)
+		cell = line[left_edge:right_edge]
+		widths[i] = max(len(cell.rstrip()), rightmost_selection - left_edge)
 	return widths
 
 def find_cell_widths_for_block(view, row):
