@@ -10,6 +10,13 @@ Because Sublime Text does not allow variable-width tabs, this plugin works by in
 Install
 -------
 
+This plugin is available through Package Control, which is available here:
+
+    http://wbond.net/sublime_packages/package_control
+
+Manual Install
+--------------
+
 Go to your Packages subdirectory under ST2's data directory:
 
 * Windows: %APPDATA%\Sublime Text 2
