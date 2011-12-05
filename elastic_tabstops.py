@@ -31,26 +31,40 @@ def tabs_for_row(view, row):
 		row_tabs.append(tab.start())
 	return row_tabs
 
-def cell_widths_for_row(view, row, allow_extra_space):
+def selection_columns_for_row(view, row):
+	selections = []
+	for s in view.sel():
+		if s.empty():
+			r, c =view.rowcol(s.a)
+			if r == row:
+				selections.append(c)
+	return selections
+
+def any_selection_at_right_edge_of_cell(selection_columns, cell_right_edge):
+	if cell_right_edge in selection_columns:
+		return True
+	return False
+
+def cell_widths_for_row(view, row):
+	selection_columns = selection_columns_for_row(view, row)
 	tabs = [-1] + tabs_for_row(view, row)
 	widths = [0] * (len(tabs) - 1)
 	line = view.substr(view.line(view.text_point(row,0)))
 	for i in range(0,len(tabs)-1):
 		cell = line[tabs[i]+1:tabs[i+1]]
-		cell_rstrip_len = len(cell.rstrip())
-		if len(cell) == cell_rstrip_len or not allow_extra_space:
-			widths[i] = cell_rstrip_len
+		if any_selection_at_right_edge_of_cell(selection_columns, tabs[i+1]):
+			widths[i] = len(cell)
 		else:
-			widths[i] = cell_rstrip_len+1
+			widths[i] = len(cell.rstrip())
 	return widths
 
-def find_cell_widths_for_block(view, row, modified_rows):
+def find_cell_widths_for_block(view, row):
 	cell_widths = []
 	
 	#starting row and backward
 	row_iter = row
 	while row_iter >= 0:
-		widths = cell_widths_for_row(view, row_iter, row_iter in modified_rows)
+		widths = cell_widths_for_row(view, row_iter)
 		if len(widths) == 0:
 			break
 		cell_widths.insert(0, widths)
@@ -62,7 +76,7 @@ def find_cell_widths_for_block(view, row, modified_rows):
 	num_rows = lines_in_buffer(view)
 	while row_iter < num_rows - 1:
 		row_iter += 1
-		widths = cell_widths_for_row(view, row_iter, row_iter in modified_rows)
+		widths = cell_widths_for_row(view, row_iter)
 		if len(widths) == 0:
 			break
 		cell_widths.append(widths)
@@ -127,7 +141,7 @@ def process_rows(view, edit, rows):
 		if row in checked_rows:
 			continue
 		
-		cell_widths_by_row, row_index = find_cell_widths_for_block(view, row, rows)
+		cell_widths_by_row, row_index = find_cell_widths_for_block(view, row)
 		set_block_cell_widths_to_max(cell_widths_by_row)
 		for widths in cell_widths_by_row:
 			checked_rows.add(row_index)
