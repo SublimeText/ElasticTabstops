@@ -214,3 +214,37 @@ def asynchronous_pending_command(view, command_string):
 class PendingCommandCommand(sublime_plugin.TextCommand):
 	def run(self,edit,command):
 		sublime.set_timeout(lambda : asynchronous_pending_command(self.view, command), 1)
+
+class MoveByCellsCommand(sublime_plugin.TextCommand):
+	def run(self, edit, direction, extend):
+		new_regions = []
+		for s in self.view.sel():
+			line = self.view.substr(self.view.line(s.b))
+			row, col = self.view.rowcol(s.b)
+			print(line)
+			if direction == "right":
+				next_tab_col = line[col+1:].find('\t')
+				if next_tab_col == -1:
+					next_tab_col = len(line)
+				else:
+					next_tab_col += col + 1
+			elif direction == "left":
+				next_tab_col = line[:max(col-1, 0)].rfind('\t')
+				if next_tab_col == -1:
+					next_tab_col = 0
+				else:
+					next_tab_col += 1
+			else:
+				raise Exception("invalid direction")
+				next_tab_col = s.b
+			
+			b = self.view.text_point(row, next_tab_col)
+			
+			if extend:
+				new_regions.append(sublime.Region(s.a, b))
+			else:
+				new_regions.append(sublime.Region(b, b))
+		sel = self.view.sel()
+		sel.clear()
+		for r in new_regions:
+			sel.add(r)

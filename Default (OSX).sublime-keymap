@@ -2,5 +2,10 @@
 	{ "keys": ["super+z"], "command": "pending_command", "args": {"command": "undo"} },
 	{ "keys": ["super+shift+z"], "command": "pending_command", "args": {"command": "redo"} },
 	{ "keys": ["super+u"], "command": "pending_command", "args": {"command": "soft_undo"} },
-	{ "keys": ["super+shift+u"], "command": "pending_command", "args": {"command": "soft_redo"} }
+	{ "keys": ["super+shift+u"], "command": "pending_command", "args": {"command": "soft_redo"} },
+	
+	{ "keys": ["ctrl+alt+right"], "command": "move_by_cells", "args": {"direction": "right", "extend": false} },
+	{ "keys": ["ctrl+alt+left"], "command": "move_by_cells", "args": {"direction": "left", "extend": false} },
+	{ "keys": ["ctrl+alt+shift+right"], "command": "move_by_cells", "args": {"direction": "right", "extend": true} },
+	{ "keys": ["ctrl+alt+shift+left"], "command": "move_by_cells", "args": {"direction": "left", "extend": true} }
 ]
