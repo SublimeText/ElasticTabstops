@@ -85,12 +85,12 @@ def find_cell_widths_for_block(view, row):
 	return cell_widths, first_row
 
 def adjust_row(view, edit, row, widths):
-	changed = False
 	row_tabs = tabs_for_row(view, row)
 	if len(row_tabs) == 0:
-		return 0
+		return edit
 	bias = 0
 	location = -1
+	
 	for w, it in izip(widths,row_tabs):
 		location += 1 + w
 		it += bias
@@ -98,22 +98,24 @@ def adjust_row(view, edit, row, widths):
 		if difference == 0:
 			continue
 		
-		changed = True
-		
 		end_tab_point = view.text_point(row, it)
 		partial_line = view.substr(view.line(end_tab_point))[0:it]
 		stripped_partial_line = partial_line.rstrip()
 		ispaces = len(partial_line) - len(stripped_partial_line)
 		if difference > 0:
+			if not edit:
+				edit = view.begin_edit()
 			#put the spaces after the tab and then delete the tab, so any insertion
 			#points behave as expected
 			view.insert(edit, end_tab_point+1, (' ' * difference) + "\t")
 			view.erase(edit, sublime.Region(end_tab_point, end_tab_point + 1))
 			bias += difference
 		if difference < 0 and ispaces >= -difference:
+			if not edit:
+				edit = view.begin_edit()
 			view.erase(edit, sublime.Region(end_tab_point, end_tab_point + difference))
 			bias += difference
-	return changed
+	return edit
 
 def set_block_cell_widths_to_max(cell_widths):
 	starting_new_block = True
@@ -135,8 +137,8 @@ def set_block_cell_widths_to_max(cell_widths):
 				starting_new_block = True
 			max_width = max(max_width, width)
 
-def process_rows(view, edit, rows):
-	changed = False
+def process_rows(view, rows):
+	edit = False
 	checked_rows = set()
 	for row in rows:
 		if row in checked_rows:
@@ -146,9 +148,9 @@ def process_rows(view, edit, rows):
 		set_block_cell_widths_to_max(cell_widths_by_row)
 		for widths in cell_widths_by_row:
 			checked_rows.add(row_index)
-			changed |= adjust_row(view, edit, row_index, widths)
+			edit = adjust_row(view, edit, row_index, widths)
 			row_index += 1
-	return changed
+	return edit
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
 	pending = 0
@@ -161,7 +163,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 		if self.pending:
 			return
 		
-		changed = False
+		edit = False
 		selected_rows = self.selected_rows_by_view.get(view.id(), get_selected_rows(view))
 		try:
 			self.pending = 1
@@ -171,21 +173,21 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 				translate = True
 				view.settings().set("translate_tabs_to_spaces", False)
 			
-			edit = view.begin_edit()
-			changed = process_rows(view, edit, selected_rows)
+			edit = process_rows(view, selected_rows)
 			
 		finally:
 			if translate:
 				view.settings().set("translate_tabs_to_spaces",True)
-			view.end_edit(edit)
-			if changed:
+			if edit:
+				view.end_edit(edit)
 				view.run_command("glue_marked_undo_groups")
 			else:
 				# We don't want to hold on to our mark in between calls,
 				# otherwise undo will only undo between times that you've
 				# affected the indentation
 				view.run_command("unmark_undo_groups_for_gluing")
-			view.run_command("maybe_mark_undo_groups_for_gluing")  #for the next time around
+			if edit:
+				view.run_command("maybe_mark_undo_groups_for_gluing")  #for the next time around
 			self.pending = 0
 	
 	def on_selection_modified(self, view):
@@ -196,7 +198,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 class ElasticTabstopsUpdateCommand(sublime_plugin.TextCommand):
 	def run(self,edit):
 		rows = range(0,lines_in_buffer(self.view))
-		process_rows(self.view, edit, rows)
+		process_rows(self.view, rows)
 
 
 def set_pending(pending):
