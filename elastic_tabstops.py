@@ -221,7 +221,6 @@ class MoveByCellsCommand(sublime_plugin.TextCommand):
 		for s in self.view.sel():
 			line = self.view.substr(self.view.line(s.b))
 			row, col = self.view.rowcol(s.b)
-			print(line)
 			if direction == "right":
 				next_tab_col = line[col+1:].find('\t')
 				if next_tab_col == -1:
