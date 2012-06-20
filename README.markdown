@@ -7,6 +7,12 @@ Because Sublime Text does not allow variable-width tabs, this plugin works by in
 1. The file will have extra spaces in it, obviously.
 1. The file will show up correctly in editors that don't support elastic tabstops. Bonus!
 
+Keyboard shortcuts
+------------------
+ElasticTabstops includes keyboard shortcuts for navigating to the next and previous tab. This can be extremely useful if, for example, one has multiple selections on different rows.
+
+By default, these shortcuts are `ctrl+alt+left` and `ctrl+alt+right`, and holding `shift` will extend the selection as expected.
+
 Install
 -------
 
