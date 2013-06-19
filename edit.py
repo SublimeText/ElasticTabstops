@@ -54,6 +54,9 @@ class Edit:
         for step in self.steps:
             step.run(view, edit)
 
+    def end(self):
+        self.__exit__(None, None, None)
+
     def __enter__(self):
         return self
 
