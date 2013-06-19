@@ -12,10 +12,12 @@ import sublime_plugin
 import re
 import sys
 if sys.version_info[0] < 3:
+	from edit import Edit
 	from itertools import izip, izip_longest
 	zip = izip
 	zip_longest = izip_longest
 else:
+	from ElasticTabstops.edit import Edit
 	from itertools import zip_longest
 
 def lines_in_buffer(view):
@@ -109,17 +111,15 @@ def adjust_row(view, edit, row, widths):
 		stripped_partial_line = partial_line.rstrip()
 		ispaces = len(partial_line) - len(stripped_partial_line)
 		if difference > 0:
-			if not edit:
-				edit = view.begin_edit()
+			edit = edit or Edit(view)
 			#put the spaces after the tab and then delete the tab, so any insertion
 			#points behave as expected
-			view.insert(edit, end_tab_point+1, (' ' * difference) + "\t")
-			view.erase(edit, sublime.Region(end_tab_point, end_tab_point + 1))
+			edit.insert(end_tab_point+1, (' ' * difference) + "\t")
+			edit.erase(sublime.Region(end_tab_point, end_tab_point + 1))
 			bias += difference
 		if difference < 0 and ispaces >= -difference:
-			if not edit:
-				edit = view.begin_edit()
-			view.erase(edit, sublime.Region(end_tab_point, end_tab_point + difference))
+			edit = edit or Edit(view)
+			edit.erase(sublime.Region(end_tab_point, end_tab_point + difference))
 			bias += difference
 	return edit
 
@@ -185,7 +185,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 			if translate:
 				view.settings().set("translate_tabs_to_spaces",True)
 			if edit:
-				view.end_edit(edit)
+				edit.end()
 				view.run_command("glue_marked_undo_groups")
 			else:
 				# We don't want to hold on to our mark in between calls,
@@ -202,7 +202,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
 
 class ElasticTabstopsUpdateCommand(sublime_plugin.TextCommand):
-	def run(self,edit):
+	def run(self, edit):
 		rows = range(0,lines_in_buffer(self.view))
 		process_rows(self.view, rows)
 
@@ -220,7 +220,7 @@ def asynchronous_pending_command(view, command_string):
 	set_pending(False)
 
 class PendingCommandCommand(sublime_plugin.TextCommand):
-	def run(self,edit,command):
+	def run(self, edit, command):
 		sublime.set_timeout(lambda : asynchronous_pending_command(self.view, command), 1)
 
 class MoveByCellsCommand(sublime_plugin.TextCommand):
