@@ -125,17 +125,17 @@ def adjust_row(view, edit, row, widths):
 
 def set_block_cell_widths_to_max(cell_widths):
 	starting_new_block = True
-	for c, column in enumerate(zip_longest(*cell_widths, fillvalue=None)):
-		#add an extra None to the end so that the end of the column automatically
+	for c, column in enumerate(zip_longest(*cell_widths, fillvalue=-1)):
+		#add an extra -1 to the end so that the end of the column automatically
 		#finishes a block
-		column += (None,)
+		column += (-1,)
 		done = False
 		for r, width in enumerate(column):
 			if starting_new_block:
 				block_start_row = r
 				starting_new_block = False
 				max_width = 0
-			if width == None:
+			if width == -1:
 				#block ended
 				block_end_row = r
 				for j in range(block_start_row, block_end_row):
