@@ -28,7 +28,7 @@ def get_selected_rows(view):
 	for s in view.sel():
 		begin_row,_ = view.rowcol(s.begin())
 		end_row,_ = view.rowcol(s.end())
-		map(selected_rows.add, range(begin_row, end_row+1))
+		list(map(selected_rows.add, range(begin_row, end_row+1)))
 	return selected_rows
 
 def tabs_for_row(view, row):
