@@ -111,14 +111,14 @@ def adjust_row(view, edit, row, widths):
 		stripped_partial_line = partial_line.rstrip()
 		ispaces = len(partial_line) - len(stripped_partial_line)
 		if difference > 0:
-			edit = edit or Edit(view)
+			edit = edit or Edit(view, "ElasticTabstops")
 			#put the spaces after the tab and then delete the tab, so any insertion
 			#points behave as expected
 			edit.insert(end_tab_point+1, (' ' * difference) + "\t")
 			edit.erase(sublime.Region(end_tab_point, end_tab_point + 1))
 			bias += difference
 		if difference < 0 and ispaces >= -difference:
-			edit = edit or Edit(view)
+			edit = edit or Edit(view, "ElasticTabstops")
 			edit.erase(sublime.Region(end_tab_point, end_tab_point + difference))
 			bias += difference
 	return edit
@@ -159,21 +159,16 @@ def process_rows(view, rows):
 	return edit
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
-	pending = 0
 	selected_rows_by_view = {}
 	
-	def set_pending(self, bool):
-		self.pending = bool
-	
 	def on_modified(self, view):
-		if self.pending:
+		history_item = view.command_history(1)[1]
+		if history_item and history_item.get('name') == "ElasticTabstops":
 			return
 		
 		edit = False
 		selected_rows = self.selected_rows_by_view.get(view.id(), get_selected_rows(view))
 		try:
-			self.pending = 1
-			
 			translate = False
 			if view.settings().get("translate_tabs_to_spaces"):
 				translate = True
@@ -194,7 +189,6 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 				view.run_command("unmark_undo_groups_for_gluing")
 			if edit:
 				view.run_command("maybe_mark_undo_groups_for_gluing")  #for the next time around
-			self.pending = 0
 	
 	def on_selection_modified(self, view):
 		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
@@ -206,22 +200,6 @@ class ElasticTabstopsUpdateCommand(sublime_plugin.TextCommand):
 		rows = range(0,lines_in_buffer(self.view))
 		process_rows(self.view, rows)
 
-
-def set_pending(pending):
-	for obj in sublime_plugin.all_callbacks['on_modified']:
-		try:
-			obj.set_pending(pending)
-		except:
-			pass
-
-def asynchronous_pending_command(view, command_string):
-	set_pending(True)
-	view.run_command(command_string)
-	set_pending(False)
-
-class PendingCommandCommand(sublime_plugin.TextCommand):
-	def run(self, edit, command):
-		sublime.set_timeout(lambda : asynchronous_pending_command(self.view, command), 1)
 
 class MoveByCellsCommand(sublime_plugin.TextCommand):
 	def run(self, edit, direction, extend):
