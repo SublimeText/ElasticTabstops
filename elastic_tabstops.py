@@ -10,7 +10,13 @@ UPDATE
 import sublime
 import sublime_plugin
 import re
-from itertools import izip, izip_longest
+import sys
+if sys.version_info[0] < 3:
+	from itertools import izip, izip_longest
+	zip = izip
+	zip_longest = izip_longest
+else:
+	from itertools import zip_longest
 
 def lines_in_buffer(view):
 	row, col = view.rowcol(view.size())
@@ -91,7 +97,7 @@ def adjust_row(view, edit, row, widths):
 	bias = 0
 	location = -1
 	
-	for w, it in izip(widths,row_tabs):
+	for w, it in zip(widths,row_tabs):
 		location += 1 + w
 		it += bias
 		difference = location - it
@@ -119,7 +125,7 @@ def adjust_row(view, edit, row, widths):
 
 def set_block_cell_widths_to_max(cell_widths):
 	starting_new_block = True
-	for c, column in enumerate(izip_longest(*cell_widths, fillvalue=None)):
+	for c, column in enumerate(zip_longest(*cell_widths, fillvalue=None)):
 		#add an extra None to the end so that the end of the column automatically
 		#finishes a block
 		column += (None,)
