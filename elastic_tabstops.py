@@ -92,10 +92,10 @@ def find_cell_widths_for_block(view, row):
 	
 	return cell_widths, first_row
 
-def adjust_row(view, edit, row, widths):
+def adjust_row(view, glued, row, widths):
 	row_tabs = tabs_for_row(view, row)
 	if len(row_tabs) == 0:
-		return edit
+		return glued
 	bias = 0
 	location = -1
 	
@@ -111,17 +111,21 @@ def adjust_row(view, edit, row, widths):
 		stripped_partial_line = partial_line.rstrip()
 		ispaces = len(partial_line) - len(stripped_partial_line)
 		if difference > 0:
-			edit = edit or Edit(view, "ElasticTabstops")
-			#put the spaces after the tab and then delete the tab, so any insertion
-			#points behave as expected
-			edit.insert(end_tab_point+1, (' ' * difference) + "\t")
-			edit.erase(sublime.Region(end_tab_point, end_tab_point + 1))
+			view.run_command("maybe_mark_undo_groups_for_gluing")
+			glued = True
+			with Edit(view, "ElasticTabstops") as edit:
+				#put the spaces after the tab and then delete the tab, so any insertion
+				#points behave as expected
+				edit.insert(end_tab_point+1, (' ' * difference) + "\t")
+				edit.erase(sublime.Region(end_tab_point, end_tab_point + 1))
 			bias += difference
 		if difference < 0 and ispaces >= -difference:
-			edit = edit or Edit(view, "ElasticTabstops")
-			edit.erase(sublime.Region(end_tab_point, end_tab_point + difference))
+			view.run_command("maybe_mark_undo_groups_for_gluing")
+			glued = True
+			with Edit(view, "ElasticTabstops") as edit:
+				edit.erase(sublime.Region(end_tab_point, end_tab_point + difference))
 			bias += difference
-	return edit
+	return glued
 
 def set_block_cell_widths_to_max(cell_widths):
 	starting_new_block = True
@@ -144,7 +148,7 @@ def set_block_cell_widths_to_max(cell_widths):
 			max_width = max(max_width, width)
 
 def process_rows(view, rows):
-	edit = False
+	glued = False
 	checked_rows = set()
 	for row in rows:
 		if row in checked_rows:
@@ -154,9 +158,10 @@ def process_rows(view, rows):
 		set_block_cell_widths_to_max(cell_widths_by_row)
 		for widths in cell_widths_by_row:
 			checked_rows.add(row_index)
-			edit = adjust_row(view, edit, row_index, widths)
+			glued = adjust_row(view, glued, row_index, widths)
 			row_index += 1
-	return edit
+	if glued:
+		view.run_command("glue_marked_undo_groups")
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
 	selected_rows_by_view = {}
@@ -166,7 +171,6 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 		if history_item and history_item.get('name') == "ElasticTabstops":
 			return
 		
-		edit = False
 		selected_rows = self.selected_rows_by_view.get(view.id(), get_selected_rows(view))
 		try:
 			translate = False
@@ -174,21 +178,11 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 				translate = True
 				view.settings().set("translate_tabs_to_spaces", False)
 			
-			edit = process_rows(view, selected_rows)
+			process_rows(view, selected_rows)
 			
 		finally:
 			if translate:
 				view.settings().set("translate_tabs_to_spaces",True)
-			if edit:
-				edit.end()
-				view.run_command("glue_marked_undo_groups")
-			else:
-				# We don't want to hold on to our mark in between calls,
-				# otherwise undo will only undo between times that you've
-				# affected the indentation
-				view.run_command("unmark_undo_groups_for_gluing")
-			if edit:
-				view.run_command("maybe_mark_undo_groups_for_gluing")  #for the next time around
 	
 	def on_selection_modified(self, view):
 		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
