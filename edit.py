@@ -63,14 +63,9 @@ class Edit:
 
     def __exit__(self, type, value, traceback):
         view = self.view
-        if sublime.version().startswith('2'):
-            edit = view.begin_edit()
-            self.run(edit, self.name)
-            view.end_edit(edit)
-        else:
-            key = str(hash(tuple(self.steps)))
-            sublime.edit_storage[key] = self.run
-            view.run_command('apply_edit', {'key': key, 'name': self.name})
+        key = str(hash(tuple(self.steps)))
+        sublime.edit_storage[key] = self.run
+        view.run_command('apply_edit', {'key': key, 'name': self.name})
 
 
 class apply_edit(sublime_plugin.TextCommand):
