@@ -1,5 +1,7 @@
 Notes
 -----
+Now works with both Sublime Text 2 and 3!
+
 This plugin only works if you are indenting with tabs. Limitations in Sublime Text's API make it virtually impossible to use elastic tabstops with spaces.
 
 Because Sublime Text does not allow variable-width tabs, this plugin works by inserting extra spaces before tab characters. This has two side-effects:
