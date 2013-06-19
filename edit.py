@@ -30,8 +30,9 @@ class EditStep:
 
 
 class Edit:
-    def __init__(self, view):
+    def __init__(self, view, name=None):
         self.view = view
+        self.name = name
         self.steps = []
 
     def step(self, cmd, *args):
@@ -50,7 +51,7 @@ class Edit:
     def callback(self, func):
         self.step('callback', func)
 
-    def run(self, view, edit):
+    def run(self, view, edit, name):
         for step in self.steps:
             step.run(view, edit)
 
@@ -64,14 +65,14 @@ class Edit:
         view = self.view
         if sublime.version().startswith('2'):
             edit = view.begin_edit()
-            self.run(edit)
+            self.run(edit, self.name)
             view.end_edit(edit)
         else:
             key = str(hash(tuple(self.steps)))
             sublime.edit_storage[key] = self.run
-            view.run_command('apply_edit', {'key': key})
+            view.run_command('apply_edit', {'key': key, 'name': self.name})
 
 
 class apply_edit(sublime_plugin.TextCommand):
-    def run(self, edit, key):
-        sublime.edit_storage.pop(key)(self.view, edit)
+    def run(self, edit, key, name):
+        sublime.edit_storage.pop(key)(self.view, edit, name)
