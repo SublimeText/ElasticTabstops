@@ -168,8 +168,11 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 	
 	def on_modified(self, view):
 		history_item = view.command_history(1)[1]
-		if history_item and history_item.get('name') == "ElasticTabstops":
-			return
+		if history_item:
+			if history_item.get('name') == "ElasticTabstops":
+				return
+			if history_item.get('commands') and history_item['commands'][0][1].get('name') == "ElasticTabstops":
+				return
 		
 		selected_rows = self.selected_rows_by_view.get(view.id(), get_selected_rows(view))
 		try:
