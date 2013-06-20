@@ -163,6 +163,15 @@ def process_rows(view, rows):
 	if glued:
 		view.run_command("glue_marked_undo_groups")
 
+def fix_view(view):
+	# When modifying a clone of a view, Sublime Text will only pass in
+	# the original view ID, which means we refer to the wrong selections.
+	# Fix which view we have.
+	active_view = sublime.active_window().active_view()
+	if view.id() != active_view.id() and view.buffer_id() == active_view.buffer_id():
+		view = active_view
+	return view
+
 class ElasticTabstopsListener(sublime_plugin.EventListener):
 	selected_rows_by_view = {}
 	running = False
@@ -171,12 +180,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 		if self.running:
 			return
 		
-		# When modifying a clone of a view, Sublime Text will only pass in
-		# the original view ID, which means we refer to the wrong selections.
-		# Fix which view we have.
-		active_view = sublime.active_window().active_view()
-		if view.id() != active_view.id() and view.buffer_id() == active_view.buffer_id():
-			view = active_view
+		view = fix_view(view)
 		
 		history_item = view.command_history(1)[1]
 		if history_item:
@@ -201,8 +205,11 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 				view.settings().set("translate_tabs_to_spaces",True)
 	
 	def on_selection_modified(self, view):
+		view = fix_view(view)
 		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
+	
 	def on_activated(self, view):
+		view = fix_view(view)
 		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
 
 class ElasticTabstopsUpdateCommand(sublime_plugin.TextCommand):
