@@ -171,6 +171,13 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 		if self.running:
 			return
 		
+		# When modifying a clone of a view, Sublime Text will only pass in
+		# the original view ID, which means we refer to the wrong selections.
+		# Fix which view we have.
+		active_view = sublime.active_window().active_view()
+		if view.id() != active_view.id() and view.buffer_id() == active_view.buffer_id():
+			view = active_view
+		
 		history_item = view.command_history(1)[1]
 		if history_item:
 			if history_item.get('name') == "ElasticTabstops":
