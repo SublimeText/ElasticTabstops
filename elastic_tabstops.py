@@ -165,8 +165,12 @@ def process_rows(view, rows):
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
 	selected_rows_by_view = {}
+	running = False
 	
 	def on_modified(self, view):
+		if self.running:
+			return
+		
 		history_item = view.command_history(1)[1]
 		if history_item:
 			if history_item.get('name') == "ElasticTabstops":
@@ -176,6 +180,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 		
 		selected_rows = self.selected_rows_by_view.get(view.id(), get_selected_rows(view))
 		try:
+			self.running = True
 			translate = False
 			if view.settings().get("translate_tabs_to_spaces"):
 				translate = True
@@ -184,6 +189,7 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 			process_rows(view, selected_rows)
 			
 		finally:
+			self.running = False
 			if translate:
 				view.settings().set("translate_tabs_to_spaces",True)
 	
