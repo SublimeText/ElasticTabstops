@@ -192,7 +192,9 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 			if history_item.get('commands') and history_item['commands'][0][1].get('name') == "ElasticTabstops":
 				return
 		
-		selected_rows = self.selected_rows_by_view.get(view.id(), get_selected_rows(view))
+		selected_rows = self.selected_rows_by_view.get(view.id(), set())
+		selected_rows = selected_rows.union(get_selected_rows(view))
+		
 		try:
 			self.running = True
 			translate = False
