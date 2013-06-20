@@ -30,7 +30,10 @@ def get_selected_rows(view):
 	for s in view.sel():
 		begin_row,_ = view.rowcol(s.begin())
 		end_row,_ = view.rowcol(s.end())
-		list(map(selected_rows.add, range(begin_row, end_row+1)))
+		# Include one row before and after the selection, to cover cases like
+		# hitting enter at the beginning of a line: affect both the newly-split
+		# block and the block remaining above.
+		list(map(selected_rows.add, range(begin_row-1, end_row+1 + 1)))
 	return selected_rows
 
 def tabs_for_row(view, row):
