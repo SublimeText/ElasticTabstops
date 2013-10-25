@@ -171,7 +171,9 @@ def fix_view(view):
 	# the original view ID, which means we refer to the wrong selections.
 	# Fix which view we have.
 	active_view = sublime.active_window().active_view()
-	if view.id() != active_view.id() and view.buffer_id() == active_view.buffer_id():
+	if view == None:
+		view = active_view
+	elif view.id() != active_view.id() and view.buffer_id() == active_view.buffer_id():
 		view = active_view
 	return view
 
