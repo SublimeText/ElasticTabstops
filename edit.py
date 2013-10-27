@@ -65,9 +65,9 @@ class Edit:
         view = self.view
         key = str(hash(tuple(self.steps)))
         sublime.edit_storage[key] = self.run
-        view.run_command('apply_edit', {'key': key, 'name': self.name})
+        view.run_command('apply_named_edit', {'key': key, 'name': self.name})
 
 
-class apply_edit(sublime_plugin.TextCommand):
+class apply_named_edit(sublime_plugin.TextCommand):
     def run(self, edit, key, name):
         sublime.edit_storage.pop(key)(self.view, edit, name)
