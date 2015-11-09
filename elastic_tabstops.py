@@ -20,7 +20,7 @@ else:
 	from ElasticTabstops.edit import Edit
 	from itertools import zip_longest
 
-# works the same in Py2 and Py3 (thanks jesus)
+# works the same in Py2 and Py3
 from unicodedata import east_asian_width
 
 def unicode_char_width(c):
