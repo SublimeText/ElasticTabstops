@@ -20,6 +20,22 @@ else:
 	from ElasticTabstops.edit import Edit
 	from itertools import zip_longest
 
+# works the same in Py2 and Py3
+from unicodedata import east_asian_width
+
+def unicode_char_width(c):
+	""" Wide chars are Chinese ideographs, Japanese kanji and alike.
+		They get two columns of space to render.
+	"""
+	return {
+		'Na': 1, 'N': 1, 'H': 1,
+		'W': 2, 'F': 2
+		} [east_asian_width(c)]
+
+def column_width(s):
+	""" Calculate string width in columns, accounting for wide chars """
+	return sum(map(unicode_char_width, s))
+
 def lines_in_buffer(view):
 	row, col = view.rowcol(view.size())
 	#"row" is the index of the last row; need to add 1 to get number of rows
@@ -67,7 +83,7 @@ def cell_widths_for_row(view, row):
 		right_edge = tabs[i+1]
 		rightmost_selection = rightmost_selection_in_cell(selection_columns, right_edge)
 		cell = line[left_edge:right_edge]
-		widths[i] = max(len(cell.rstrip()), rightmost_selection - left_edge)
+		widths[i] = max(column_width(cell.rstrip()), rightmost_selection - left_edge)
 	return widths
 
 def find_cell_widths_for_block(view, row):
@@ -106,13 +122,19 @@ def adjust_row(view, glued, row, widths):
 		location += 1 + w
 		it += bias
 		difference = location - it
-		if difference == 0:
-			continue
 		
 		end_tab_point = view.text_point(row, it)
 		partial_line = view.substr(view.line(end_tab_point))[0:it]
+
+		columns = column_width(partial_line)
+		difference = location - columns
+
+		if difference == 0:
+			continue
+
 		stripped_partial_line = partial_line.rstrip()
 		ispaces = len(partial_line) - len(stripped_partial_line)
+
 		if difference > 0:
 			view.run_command("maybe_mark_undo_groups_for_gluing")
 			glued = True
