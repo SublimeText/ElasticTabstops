@@ -2,7 +2,7 @@
 UPDATE
 	Use this command to reprocess the whole file. Shouldn't be necessary except
 	in specific cases.
-	
+
 	{ "keys": ["super+j"], "command": "elastic_tabstops_update"},
 """
 
@@ -72,7 +72,7 @@ def cell_widths_for_row(view, row):
 
 def find_cell_widths_for_block(view, row):
 	cell_widths = []
-	
+
 	#starting row and backward
 	row_iter = row
 	while row_iter >= 0:
@@ -82,7 +82,7 @@ def find_cell_widths_for_block(view, row):
 		cell_widths.insert(0, widths)
 		row_iter -= 1
 	first_row = row_iter + 1
-	
+
 	#forward (not including starting row)
 	row_iter = row
 	num_rows = lines_in_buffer(view)
@@ -92,7 +92,7 @@ def find_cell_widths_for_block(view, row):
 		if len(widths) == 0:
 			break
 		cell_widths.append(widths)
-	
+
 	return cell_widths, first_row
 
 def adjust_row(view, glued, row, widths):
@@ -101,14 +101,14 @@ def adjust_row(view, glued, row, widths):
 		return glued
 	bias = 0
 	location = -1
-	
+
 	for w, it in zip(widths,row_tabs):
 		location += 1 + w
 		it += bias
 		difference = location - it
 		if difference == 0:
 			continue
-		
+
 		end_tab_point = view.text_point(row, it)
 		partial_line = view.substr(view.line(end_tab_point))[0:it]
 		stripped_partial_line = partial_line.rstrip()
@@ -156,7 +156,7 @@ def process_rows(view, rows):
 	for row in rows:
 		if row in checked_rows:
 			continue
-		
+
 		cell_widths_by_row, row_index = find_cell_widths_for_block(view, row)
 		set_block_cell_widths_to_max(cell_widths_by_row)
 		for widths in cell_widths_by_row:
@@ -184,28 +184,28 @@ class ElasticTabstopsListener(sublime_plugin.EventListener):
 	def on_modified(self, view):
 		if self.running:
 			return
-		
+
 		view = fix_view(view)
-		
+
 		history_item = view.command_history(1)[1]
 		if history_item:
 			if history_item.get('name') == "ElasticTabstops":
 				return
 			if history_item.get('commands') and history_item['commands'][0][1].get('name') == "ElasticTabstops":
 				return
-		
+
 		selected_rows = self.selected_rows_by_view.get(view.id(), set())
 		selected_rows = selected_rows.union(get_selected_rows(view))
-		
+
 		try:
 			self.running = True
 			translate = False
 			if view.settings().get("translate_tabs_to_spaces"):
 				translate = True
 				view.settings().set("translate_tabs_to_spaces", False)
-			
+
 			process_rows(view, selected_rows)
-			
+
 		finally:
 			self.running = False
 			if translate:
@@ -246,9 +246,9 @@ class MoveByCellsCommand(sublime_plugin.TextCommand):
 			else:
 				raise Exception("invalid direction")
 				next_tab_col = s.b
-			
+
 			b = self.view.text_point(row, next_tab_col)
-			
+
 			if extend:
 				new_regions.append(sublime.Region(s.a, b))
 			else:
