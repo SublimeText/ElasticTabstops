@@ -2,7 +2,7 @@
 UPDATE
 	Use this command to reprocess the whole file. Shouldn't be necessary except
 	in specific cases.
-	
+
 	{ "keys": ["super+j"], "command": "elastic_tabstops_update"},
 """
 
@@ -11,6 +11,8 @@ import sublime
 import sublime_plugin
 import re
 import sys
+import time
+
 if sys.version_info[0] < 3:
 	from edit import Edit
 	from itertools import izip, izip_longest
@@ -19,6 +21,22 @@ if sys.version_info[0] < 3:
 else:
 	from ElasticTabstops.edit import Edit
 	from itertools import zip_longest
+
+# binary representation of all ST events
+NEW               	= 1
+CLONE             	= 2
+LOAD              	= 4
+PRE_SAVE          	= 8
+POST_SAVE         	= 16
+MODIFIED          	= 32
+SELECTION_MODIFIED	= 64
+ACTIVATED         	= 128
+DEACTIVATED       	= 256
+
+try:
+  set_timeout = sublime.set_timeout_async
+except AttributeError:
+  set_timeout = sublime.set_timeout
 
 def lines_in_buffer(view):
 	row, col = view.rowcol(view.size())
@@ -72,7 +90,7 @@ def cell_widths_for_row(view, row):
 
 def find_cell_widths_for_block(view, row):
 	cell_widths = []
-	
+
 	#starting row and backward
 	row_iter = row
 	while row_iter >= 0:
@@ -82,7 +100,7 @@ def find_cell_widths_for_block(view, row):
 		cell_widths.insert(0, widths)
 		row_iter -= 1
 	first_row = row_iter + 1
-	
+
 	#forward (not including starting row)
 	row_iter = row
 	num_rows = lines_in_buffer(view)
@@ -92,7 +110,7 @@ def find_cell_widths_for_block(view, row):
 		if len(widths) == 0:
 			break
 		cell_widths.append(widths)
-	
+
 	return cell_widths, first_row
 
 def adjust_row(view, glued, row, widths):
@@ -101,14 +119,14 @@ def adjust_row(view, glued, row, widths):
 		return glued
 	bias = 0
 	location = -1
-	
+
 	for w, it in zip(widths,row_tabs):
 		location += 1 + w
 		it += bias
 		difference = location - it
 		if difference == 0:
 			continue
-		
+
 		end_tab_point = view.text_point(row, it)
 		partial_line = view.substr(view.line(end_tab_point))[0:it]
 		stripped_partial_line = partial_line.rstrip()
@@ -156,7 +174,7 @@ def process_rows(view, rows):
 	for row in rows:
 		if row in checked_rows:
 			continue
-		
+
 		cell_widths_by_row, row_index = find_cell_widths_for_block(view, row)
 		set_block_cell_widths_to_max(cell_widths_by_row)
 		for widths in cell_widths_by_row:
@@ -178,46 +196,149 @@ def fix_view(view):
 	return view
 
 class ElasticTabstopsListener(sublime_plugin.EventListener):
-	selected_rows_by_view = {}
-	running = False
-	
-	def on_modified(self, view):
+	def __init__(self):
+		self.view_events = {}
+
+	def debounce(self, view, event_id):
+		"""Invoke evaluation of changes after some idle time
+			view     (View): The view to perform evaluation for
+			event_id (int) : The event identifier """
+		# based on https://github.com/jisaacks/GitGutter/blob/master/modules/events.py
+		key = view.id()
+		try:
+			self.view_events[key].push(event_id)
+		except KeyError:
+			if view.buffer_id():
+				new_listener = ViewEventListener(view)
+				new_listener.push(event_id)
+				self.view_events[key] = new_listener
+			for vid in [vid for vid, listener in self.view_events.items() # collect garbage
+				if listener.view.buffer_id() == 0]:
+					del self.view_events[vid]
+
+	# TODO: check if activated/selection asyncs bug and need to revert to the blocking version
+	def on_activated_async         (self, view):
+		self.debounce(view,ACTIVATED)
+	def on_selection_modified_async(self, view):
+		self.debounce(view,SELECTION_MODIFIED)
+	def on_modified                (self, view):
+		# user editing during the line-by-line tabstop fixing operation can bug by deleting/inserting a symbol; use the sync API to block it
+		self.debounce(view,          MODIFIED)
+
+class ViewEventListener(object):
+	"""Queues and forwards view events to Commands
+	A ViewEventListener object queues all events received from a view and starts a single Sublime timer to forward the event to Commands after some idle time. Prevents bloating Sublime API due to dozens of timers running for debouncing events
+	"""
+	def __init__(self, view):
+		"""Initialize ViewEventListener object
+		  view (View): The view the object is created for """
+
+		self.view       	= view
+		self.settings   	= view.settings()                               	#
+		self.busy       	= False                                         	# flag: timer is running
+		self.running    	= False                                         	# flag: modification is running
+		self.events     	= 0                                             	# a binary combination of above events
+		self.latest_time	= 0.0                                           	# latest time of append() call
+		_delay          	= self.settings.get('eltab_debounce_delay',1000)	# config: debounce delay
+		self.delay      	= max(200,_delay if _delay is not None else 0)  	# debounce delay in milliseconds
+		self.selected_rows_by_view = {}
+
+	def push(self, event_id):
+		"""Push the event to the queue and start idle timer.
+		Add the event identifier to 'events' and update the 'latest_time'. This marks an event to be received rather than counting the number of received events. The idle timer is started only, if no other one is already in flight.
+		                	event_id (int): One of the event identifiers"""
+		self.latest_time	 = time.time()
+		self.events     	|= event_id
+		if not self.busy:
+			self.start_timer(self.delay)
+
+	def start_timer(self, delay):
+		"""Run commands after some idle time
+		If no events received during the idle time → run the commands
+		Else                                       → restart timer to check later
+		Timer is stopped without calling the commands if a view is not visible to save some resources. Evaluation will be triggered by activating the view next time
+			delay (int): The delay in milliseconds to wait until probably
+				forward the events, if no other event was received in the meanwhile"""
+		start_time = self.latest_time
+
+		def worker():
+			"""The function called after some idle time."""
+			if start_time < self.latest_time:
+				self.start_timer(self.delay)
+				return
+			self.busy = False
+			if not self.is_view_visible():
+				return
+			# bitwise AND comparison to see which events were triggered during the delay
+			if ACTIVATED          == ACTIVATED          & self.events:
+				self.activated()
+			if SELECTION_MODIFIED == SELECTION_MODIFIED & self.events:
+				self.selection_modified()
+			if MODIFIED           == MODIFIED           & self.events:
+				self.modified()
+			self.events = 0
+
+		self.busy = True
+		if   MODIFIED           == MODIFIED           & self.events:
+			sublime.set_timeout(worker, delay) # force sync timeout
+		else:
+			set_timeout(worker, delay)         #      async timeout (if exists)
+
+	def is_view_visible(self):
+		"""Determine if the view is visible
+		Only an active view of a group is visible
+		Returns: bool: True if the view is visible in any window """
+		window = self.view.window()
+		if window:
+			view_id = self.view.id()
+			for group in range(window.num_groups()):
+				active_view = window.active_view_in_group(group)
+				if active_view and active_view.id() == view_id:
+					return True
+		return False
+
+	def activated(self):
+		view	= self.view
+		view	= fix_view(view)
+		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
+
+	def selection_modified(self):
+		view	= self.view
+		view	= fix_view(view)
+		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
+
+	def modified(self):
+		view      = self.view
 		if self.running:
 			return
-		
+
 		view = fix_view(view)
-		
+
 		history_item = view.command_history(1)[1]
 		if history_item:
-			if history_item.get('name') == "ElasticTabstops":
+			if history_item.get                  ('name') == "ElasticTabstops":
 				return
-			if history_item.get('commands') and history_item['commands'][0][1].get('name') == "ElasticTabstops":
+			if history_item.get('commands') and \
+				 history_item['commands'][0][1].get('name') == "ElasticTabstops":
 				return
-		
+
 		selected_rows = self.selected_rows_by_view.get(view.id(), set())
 		selected_rows = selected_rows.union(get_selected_rows(view))
-		
+
 		try:
 			self.running = True
 			translate = False
-			if view.settings().get("translate_tabs_to_spaces"):
+			if self.settings.get("translate_tabs_to_spaces"):
 				translate = True
-				view.settings().set("translate_tabs_to_spaces", False)
-			
+				self.settings.set("translate_tabs_to_spaces", False)
+
 			process_rows(view, selected_rows)
-			
+
 		finally:
 			self.running = False
 			if translate:
-				view.settings().set("translate_tabs_to_spaces",True)
-	
-	def on_selection_modified(self, view):
-		view = fix_view(view)
-		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
-	
-	def on_activated(self, view):
-		view = fix_view(view)
-		self.selected_rows_by_view[view.id()] = get_selected_rows(view)
+				self.settings.set("translate_tabs_to_spaces",True)
+
 
 class ElasticTabstopsUpdateCommand(sublime_plugin.TextCommand):
 	def run(self, edit):
@@ -246,9 +367,9 @@ class MoveByCellsCommand(sublime_plugin.TextCommand):
 			else:
 				raise Exception("invalid direction")
 				next_tab_col = s.b
-			
+
 			b = self.view.text_point(row, next_tab_col)
-			
+
 			if extend:
 				new_regions.append(sublime.Region(s.a, b))
 			else:
